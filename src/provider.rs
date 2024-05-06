@@ -1,19 +1,76 @@
+use std::{marker::PhantomData, sync::Arc};
+
 use alloy_primitives::{Address, Bytes, StorageValue, U256};
 use alloy_provider::{network::Ethereum, Network, Provider, RootProvider};
 use alloy_rpc_types::{state::StateOverride, Block, BlockId, Bundle, Filter, Log};
 use alloy_transport::{Transport, TransportErrorKind, TransportResult};
 use async_trait::async_trait;
+use reth_evm_ethereum::EthEvmConfig;
 use reth_network_api::NetworkInfo;
 use reth_primitives::BlockHash;
 use reth_provider::{
     BlockIdReader, BlockReader, BlockReaderIdExt, CanonStateSubscriptions, ChainSpecProvider, EvmEnvProvider,
     HeaderProvider, StateProviderFactory,
 };
-use reth_rpc::eth::revm_utils::EvmOverrides;
+use reth_rpc::{
+    eth::{cache::EthStateCache, revm_utils::EvmOverrides},
+    EthApi, EthFilter, EthPubSub,
+};
 use reth_rpc_api::{EthApiServer, EthFilterApiServer};
+use reth_rpc_builder::EthHandlers;
+use reth_tasks::pool::BlockingTaskPool;
 use reth_transaction_pool::TransactionPool;
 
-use crate::RethProvider;
+/// A provider which directly connects to the Reth database by instanciating the server
+/// which handles RPC requests (normally running inside the node) on the client side.
+/// Requests are directly handled by [`EthHandlers`], bypassing JSON-RPC
+/// and allowing for better performances.
+#[derive(Debug, Clone)]
+pub struct RethProvider<Reth, Pool, Net, Events, P, T>
+where
+    P: Provider<T, Ethereum>,
+    T: Transport + Clone,
+{
+    eth: Arc<EthHandlers<Reth, Pool, Net, Events, EthEvmConfig>>,
+    inner: P,
+    _pd: PhantomData<fn() -> (T, Ethereum)>,
+}
+
+impl<Reth, Pool, Net, Events, P, T> RethProvider<Reth, Pool, Net, Events, P, T>
+where
+    P: Provider<T, Ethereum>,
+    T: Transport + Clone,
+{
+    /// Creates a new `RethProvider` with the given inner provider and `EthHandlers` instance.
+    pub fn new(eth: Arc<EthHandlers<Reth, Pool, Net, Events, EthEvmConfig>>, inner: P) -> Self {
+        Self { eth, inner, _pd: PhantomData }
+    }
+
+    /// Returns a reference to `EthHandlers`.
+    pub fn eth(&self) -> &EthHandlers<Reth, Pool, Net, Events, EthEvmConfig> {
+        self.eth.as_ref()
+    }
+
+    pub fn eth_api(&self) -> &EthApi<Reth, Pool, Net, EthEvmConfig> {
+        &self.eth.api
+    }
+
+    pub fn eth_cache(&self) -> &EthStateCache {
+        &self.eth.cache
+    }
+
+    pub fn eth_filter(&self) -> &EthFilter<Reth, Pool> {
+        &self.eth.filter
+    }
+
+    pub fn eth_pubsub(&self) -> &EthPubSub<Reth, Pool, Events, Net> {
+        &self.eth.pubsub
+    }
+
+    pub fn eth_blocking_task_pool(&self) -> &BlockingTaskPool {
+        &self.eth.blocking_task_pool
+    }
+}
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
