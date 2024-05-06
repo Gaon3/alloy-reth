@@ -48,7 +48,7 @@ where
 
     /// Returns a reference to `EthHandlers`.
     pub fn eth(&self) -> &EthHandlers<Reth, Pool, Net, Events, EthEvmConfig> {
-        self.eth.as_ref()
+        &self.eth
     }
 
     pub fn eth_api(&self) -> &EthApi<Reth, Pool, Net, EthEvmConfig> {
@@ -69,6 +69,25 @@ where
 
     pub fn eth_blocking_task_pool(&self) -> &BlockingTaskPool {
         &self.eth.blocking_task_pool
+    }
+}
+
+impl<Reth, Pool, Net, Events, P, T> RethProvider<Reth, Pool, Net, Events, P, T>
+where
+    Reth: BlockReaderIdExt + ChainSpecProvider,
+    P: Provider<T, Ethereum>,
+    T: Transport + Clone,
+{
+    pub fn provider(&self) -> &Reth {
+        self.eth.api.provider()
+    }
+
+    pub fn network(&self) -> &Net {
+        self.eth.api.network()
+    }
+
+    pub fn pool(&self) -> &Pool {
+        self.eth.api.pool()
     }
 }
 
