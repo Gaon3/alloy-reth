@@ -15,6 +15,7 @@ use reth_transaction_pool::{noop::NoopTransactionPool, TransactionPool};
 
 use crate::RethProvider;
 
+#[derive(Clone)]
 pub struct NoopCanonStateSubscriptions;
 
 impl CanonStateSubscriptions for NoopCanonStateSubscriptions {
