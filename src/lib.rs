@@ -1,5 +1,5 @@
-mod layer;
-mod provider;
+pub mod layer;
+pub mod provider;
 
 pub use layer::RethLayer;
 pub use provider::RethProvider;
